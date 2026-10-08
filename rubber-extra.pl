@@ -3,9 +3,19 @@
 use 5.022;
 use warnings;
 
-use Audio::PortAudio;
 use Time::HiRes qw(gettimeofday tv_interval);
 use Math::Trig qw(asin acos);
+
+
+use MIDI::RtMidi::FFI::Device::In;
+
+use AnyEvent;
+use AnyEvent::Run;
+
+
+use MIDI::RtMidi::FFI::Device;
+use MIDI::Stream::Decoder;
+
 
 
 my $pi = 3.14159265358979323846;
@@ -83,21 +93,17 @@ sub sine {
 		push @buff, ($s1[$_]+$s2[$_])/2;
 	}
 	
-	my $buff = pack "f*", @buff;
+	return @buff;
+	
+	#my $buff = pack "f*", @buff;
 	
 	#for (@buff) {
 	#	my $s = int ($_ * 32767 + 0.5);
 	#	print pack('s', $s);
 	#}
-	return $buff;
+	#return $buff;
 }
 
-
-
-my $api = Audio::PortAudio::default_host_api();
-my $device  = $api->default_output_device;
-
-my $stream = $device->open_write_stream({channel_count => 1}, 44100, 44100*0.4, 0);
 
 
 
@@ -106,26 +112,72 @@ my $stream = $device->open_write_stream({channel_count => 1}, 44100, 44100*0.4, 
 
 my $t0 = [gettimeofday];
 
+# 1. Initialize and open the input port
+my $midi_in = MIDI::RtMidi::FFI::Device::In->new();
+$midi_in->open_port_by_name(qr/./); 
 
+my $SIZE = 42;
+
+# 2. Get the file handle and attach a decoder
+my $fh = $midi_in->get_fh;
+my $decoder = MIDI::Stream::Decoder->new;
+$decoder->attach_callback( all => sub {
+    my ($event) = @_;
+	print "Received event: ";
+    my @a = $event->as_arrayref->@*;
+    warn $a[0];
+    if ($a[0] eq 'control_change') {
+		$SIZE = $a[-1] + 1;
+		warn "SETUP SIZE = $SIZE";
+	}
+    #, "\n";
+});
+
+# 3. Asynchronously read raw bytes from the handle
+#async sub read_midi_stream {
+#    my $size = $midi_in->bufsize;
+#    while ( my $midi_bytes = await Future::IO->read( $fh, $size ) ) {
+#        $decoder->decode( $midi_bytes );
+#    }
+#}
+
+my @BUFFER;
+
+my $cv = AnyEvent->condvar;
+my $handle = AnyEvent::Run->new(
+    cmd      => ['aplay', '-f', 's16_le', '-r', '44100'],
+    priority => 19,
+);
+
+
+sub send_sound {
+	my $r = '';
+	for (@BUFFER) {
+		my $s = int ($_ * 32767 + 0.5);
+		$r .= pack('s', $s);
+	}
+	@BUFFER = ();
+	
+	$handle->push_write($r); 
+	#say $r;
+	#return $r;
+};
 
 my $i = 0;
-while (1) {
+my $idle = AnyEvent->idle(cb => sub {
+	my $s1 = e (7,$SIZE, $i, sub{sin $_[0]*$_[1]});
+	my $s2 = e (7,$SIZE, $i, sub{cos $_[0]*$_[1]});
+	$i ++;
 	
-	my $s1 = e (7,2, $i, sub{sin $_[0]*$_[1]});
-	my $s2 = e (7,2, $i, sub{cos $_[0]*$_[1]});
-	
-	my $buff = sine(
+	@BUFFER = sine(
 		int ($s1*100) % 36, 
 		int ($s2*100) % 36, 
 		0.4
 	);
-	$stream->write($buff);
 	
-	$i ++;
-    
-    #my $elapsed = tv_interval ( $t0, [gettimeofday()]);
-    #warn "Time = $elapsed";
-}
+	send_sound();
+});
 
+$cv->recv;
 
 1;
