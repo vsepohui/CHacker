@@ -153,18 +153,13 @@ $decoder0->attach_callback( all => sub {
 my $cv0 = AnyEvent->condvar;
 
 
-use AnyEvent::TermKey qw( FORMAT_VIM );
-
-my $aetk = AnyEvent::TermKey->new(
-   term => \*STDIN,
-   on_key => sub {
-      my ( $key ) = @_;
-      if ($key->termkey->format_key( $key, FORMAT_VIM ) eq '<Enter>') {
-		  if ($channel) {
-			  $cv0->send;
-		  }
-	  }
-      
+my $io = AnyEvent->io(
+   fh 	=> \*STDIN,
+   poll => 'r',
+   cb 	=> sub {
+	  my $input = <STDIN>;
+      $cv0->send if ($channel && $input =~ /\n/);
+      return;
    },
 );
 
@@ -178,6 +173,7 @@ my $w0 = AnyEvent->idle(cb => sub {
 
 $cv0->recv;
 
+undef $io;
 undef $w0;
 
 
