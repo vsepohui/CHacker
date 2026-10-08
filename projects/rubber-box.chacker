@@ -1,0 +1,35 @@
+sub synth {
+	my $chacker = shift;
+	
+	state $size = 1;
+	state $t = $chacker->init_midi_hook(sub {
+		my $val = shift;
+		$size = $val || 1;
+	});
+
+	state $t0 = [gettimeofday];
+
+	state $i = 0;
+	state $streamed = 0;
+
+
+	$chacker->wait_midi;
+
+	my $elapsed = tv_interval($t0, [gettimeofday]);
+	return if ($streamed > $elapsed + 0.01);
+
+
+	my $s1 = e (7,$size, $i, sub{sin $_[0]*$_[1]});
+	$i ++;
+
+	push @{$chacker->{buffer}}, sine(
+		int ($s1*100) % 36, 
+		0.01,
+	);
+
+	$streamed += 0.01;
+
+	$chacker->push_output();
+}
+
+1;

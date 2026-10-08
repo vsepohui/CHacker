@@ -138,7 +138,7 @@ sub init_midi {
 	say "-"x80;
 
 	print "Select device > ";
-	my $dev = <>;
+	my $dev = <STDIN>;
 	chomp $dev;
 
 	$dev = $midi_devices[$dev - 1] // die "Wrong devices";
