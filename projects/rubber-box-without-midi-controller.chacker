@@ -9,8 +9,7 @@ sub synth {
 	my $elapsed = $chacker->offset;
 	return if ($streamed > $elapsed + 0.01);
 
-	my $s1 = e (7,42, $i, sub{sin $_[0]*$_[1]});
-	$i ++;
+	my $s1 = e (7,42, $i++, sub{sin $_[0]*$_[1]});
 
 	push @{$chacker->{buffer}}, sine(
 		int ($s1*100) % 36, 
