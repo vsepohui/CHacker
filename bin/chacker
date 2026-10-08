@@ -4,7 +4,7 @@ use 5.022;
 use warnings;
 
 use FindBin qw($Bin);
-use lib "$Bin/lib";
+use lib "$Bin/../lib";
 
 use Time::HiRes qw(gettimeofday tv_interval);
 
