@@ -33,10 +33,14 @@ eval "$project";
 
 die $@ if $@;
 
+my $config = eval "config()" || {};
+
 my $chacker = new CHacker;
 
-$chacker->init_midi();
-$chacker->map_midi();
+if (!$config->{no_midi}) {
+	$chacker->init_midi();
+	$chacker->map_midi();
+}
 
 
 my $cv = AnyEvent->condvar;
