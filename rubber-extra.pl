@@ -90,7 +90,7 @@ sub sine {
 	
 	my @buff;
 	for (0..scalar (@s1) - 1) {
-		push @buff, ($s1[$_]+$s2[$_])/2;
+		push @buff, ($s1[$_]+0*$s2[$_])/2;
 	}
 	
 	return @buff;
@@ -107,14 +107,10 @@ sub sine {
 
 
 
-#my @s1 = e 7,2,421, sub{sin $_[0]*$_[1]};
-#my @s2 = e 7,2,421, sub{cos $_[0]*$_[1]};
-
-my $t0 = [gettimeofday];
 
 # 1. Initialize and open the input port
 my $midi_in = MIDI::RtMidi::FFI::Device::In->new();
-$midi_in->open_port_by_name(qr/./); 
+$midi_in->open_port_by_name(qr/VMPK/); 
 
 my $SIZE = 42;
 
@@ -125,6 +121,7 @@ $decoder->attach_callback( all => sub {
     my ($event) = @_;
 	print "Received event: ";
     my @a = $event->as_arrayref->@*;
+    say join ', ', @a;
     warn $a[0];
     if ($a[0] eq 'control_change') {
 		$SIZE = $a[-1] + 1;
@@ -132,14 +129,6 @@ $decoder->attach_callback( all => sub {
 	}
     #, "\n";
 });
-
-# 3. Asynchronously read raw bytes from the handle
-#async sub read_midi_stream {
-#    my $size = $midi_in->bufsize;
-#    while ( my $midi_bytes = await Future::IO->read( $fh, $size ) ) {
-#        $decoder->decode( $midi_bytes );
-#    }
-#}
 
 my @BUFFER;
 
@@ -158,13 +147,28 @@ sub send_sound {
 	}
 	@BUFFER = ();
 	
-	$handle->push_write($r); 
-	#say $r;
+	$handle->push_write($r);
+	#print $r;
 	#return $r;
 };
 
+my $t0 = [gettimeofday];
+
 my $i = 0;
+my $streamed = 0;
 my $idle = AnyEvent->idle(cb => sub {
+	my $size = $midi_in->bufsize;
+	my $midi_bytes;
+	read( $fh, $midi_bytes, $size);
+	$decoder->decode( $midi_bytes );
+		
+	
+	my $elapsed = tv_interval ( $t0, [gettimeofday]);
+	
+	return if ($streamed > $elapsed + 0.01);
+	#warn $elapsed;
+
+
 	my $s1 = e (7,$SIZE, $i, sub{sin $_[0]*$_[1]});
 	my $s2 = e (7,$SIZE, $i, sub{cos $_[0]*$_[1]});
 	$i ++;
@@ -172,8 +176,10 @@ my $idle = AnyEvent->idle(cb => sub {
 	@BUFFER = sine(
 		int ($s1*100) % 36, 
 		int ($s2*100) % 36, 
-		0.4
+		0.01,
 	);
+	
+	$streamed += 0.01;
 	
 	send_sound();
 });
