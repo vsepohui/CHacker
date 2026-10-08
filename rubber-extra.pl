@@ -107,28 +107,98 @@ sub sine {
 
 
 
-
 # 1. Initialize and open the input port
 my $midi_in = MIDI::RtMidi::FFI::Device::In->new();
-$midi_in->open_port_by_name(qr/VMPK/); 
+
+
+
+say "Select MIDI-Device:";
+say "-"x80;
+
+my @midi_devices = sort keys %{$midi_in->get_all_port_names};
+
+for (1..scalar @midi_devices) {
+	say "$_. " . $midi_devices[$_-1];
+}
+say "-"x80;
+
+print "Select device > ";
+my $dev = <>;
+chomp $dev;
+
+$dev = $midi_devices[$dev - 1] // die "Wrong devices";
+
+$midi_in->open_port_by_name($dev);
+
+say "Midi-map for controller: touch pitcher and next press [Enter]!";
 
 my $SIZE = 42;
+
+my $channel = '';
+
+# 2. Get the file handle and attach a decoder
+my $fh0 = $midi_in->get_fh;
+my $decoder0 = MIDI::Stream::Decoder->new;
+$decoder0->attach_callback( all => sub {
+    my ($event) = @_;
+	print "Received event: ";
+    my @a = $event->as_arrayref->@*;
+    say join ', ', @a;
+    $channel = $a[0];
+    #, "\n";
+});
+
+
+
+my $cv0 = AnyEvent->condvar;
+
+
+use AnyEvent::TermKey qw( FORMAT_VIM );
+
+my $aetk = AnyEvent::TermKey->new(
+   term => \*STDIN,
+   on_key => sub {
+      my ( $key ) = @_;
+      if ($key->termkey->format_key( $key, FORMAT_VIM ) eq '<Enter>') {
+		  if ($channel) {
+			  $cv0->send;
+		  }
+	  }
+      
+   },
+);
+
+my $w0 = AnyEvent->idle(cb => sub {
+	my $size = $midi_in->bufsize;
+	my $midi_bytes;
+	read( $fh0, $midi_bytes, $size);
+	$decoder0->decode( $midi_bytes );
+	
+});
+
+$cv0->recv;
+
+undef $w0;
+
+
 
 # 2. Get the file handle and attach a decoder
 my $fh = $midi_in->get_fh;
 my $decoder = MIDI::Stream::Decoder->new;
 $decoder->attach_callback( all => sub {
     my ($event) = @_;
-	print "Received event: ";
+	#print "Received event: ";
     my @a = $event->as_arrayref->@*;
-    say join ', ', @a;
-    warn $a[0];
-    if ($a[0] eq 'control_change') {
+    #say join ', ', @a;
+    #warn $a[0];
+    if ($a[0] eq $channel) {
 		$SIZE = $a[-1] + 1;
-		warn "SETUP SIZE = $SIZE";
+		#warn "SETUP SIZE = $SIZE";
 	}
     #, "\n";
 });
+	
+
 
 my @BUFFER;
 
