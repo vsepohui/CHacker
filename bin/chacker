@@ -10,7 +10,19 @@ use Time::HiRes qw(gettimeofday tv_interval);
 
 use CHacker;
 
-my $file = $ARGV[0] or die "Project is not specified";
+
+my $usage = "Usage:\n\t$0 [--help|-h] [--input|-i=file.hacker] [project-file.chacker]";
+my %args = process_command_line(qw/i|input=s h|help v|version/, $usage);
+
+if ($args{version}) {
+	say "CHacker 0.1a";
+	exit;
+}
+
+my $stdin = ($ARGV[-1] // '') ;
+my $file = $args{input} // $ARGV[-1];
+
+say $usage and exit() unless -f $file;
 
 my $project = '';
 my $fi;
@@ -20,7 +32,6 @@ close $fi;
 eval "$project";
 
 die $@ if $@;
-
 
 my $chacker = new CHacker;
 

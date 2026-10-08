@@ -5,8 +5,9 @@ use warnings;
 
 
 use Exporter qw(import);
-our @EXPORT = qw(e sine);
+our @EXPORT = qw(process_command_line e sine);
 
+use Getopt::Long qw(GetOptions);
 
 use Time::HiRes qw(gettimeofday tv_interval);
 use Math::Trig qw(asin acos);
@@ -26,6 +27,27 @@ sub new {
 	return bless $self, $class;
 }
 
+# Usefull util for parsing command-line
+sub process_command_line {
+	my $usage = pop; # Get last param, it's Usage text
+	my @opts  = @_;  # Get params
+	
+	# Prepare from GetOptions syntax option to key-names
+	my $prepare = sub {
+		my $opt = shift;
+		$opt =~ s/\=s$//;
+		$opt =~ s/^\w\|(\w+)$/$1/;
+		return $opt;
+	};
+	
+	my %args = ();
+	GetOptions(map {$_ => \$args{$prepare->($_)}} @opts);
+	
+	# Show usage, it catchet --help command-line param
+	say $usage and exit() if $args{help};
+	
+	return %args;
+}
 
 sub pi {
 	return 3.14159265358979323846;

@@ -31,5 +31,3 @@ sub synth {
 
 	$chacker->push_output();
 }
-
-1;
