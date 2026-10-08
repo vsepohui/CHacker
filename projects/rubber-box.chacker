@@ -7,15 +7,12 @@ sub synth {
 		$size = $val || 1;
 	});
 
-	state $t0 = [gettimeofday];
-
 	state $i = 0;
 	state $streamed = 0;
 
-
 	$chacker->wait_midi;
 
-	my $elapsed = tv_interval($t0, [gettimeofday]);
+	my $elapsed = $chacker->offset;
 	return if ($streamed > $elapsed + 0.01);
 
 

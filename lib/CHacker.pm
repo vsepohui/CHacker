@@ -226,6 +226,13 @@ sub init_output {
 	);
 	
 	$self->{output} = $handle;
+	
+	$self->{time_start} = [gettimeofday];
+}
+
+sub offset {
+	my $self = shift;
+	return tv_interval($self->{time_start}, [gettimeofday]);
 }
 
 sub init_midi_hook {
