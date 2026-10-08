@@ -1,6 +1,6 @@
 CHacker. Hacker for Midi-Controllers.
 
-# Install Hacker
+# Install CHacker
 
 ```
 apt install alsa-tools
