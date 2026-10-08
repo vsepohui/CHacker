@@ -1,0 +1,131 @@
+#!/usr/bin/perl
+
+use 5.022;
+use warnings;
+
+use Audio::PortAudio;
+use Time::HiRes qw(gettimeofday tv_interval);
+use Math::Trig qw(asin acos);
+
+
+my $pi = 3.14159265358979323846;
+
+my $config = {
+	DEFAULT_SAMPLE_RATE 	=> 44100,
+	DEFAULT_VOLUME      	=> 1,
+	NOTES_FREQUES 			=> [qw/13.75000 14.56762 15.43385 16.35160 17.32391 18.35405 19.44544 20.60172 21.82676 23.12465 24.49971 25.95654 27.50000 29.13524 30.86771 32.70320 34.64783 36.70810 38.89087 41.20344 43.65353 46.24930 48.99943 51.91309 55.00000 58.27047 61.73541 65.40639 69.29566 73.41619 77.78175 82.40689 87.30706 92.49861 97.99886 103.8262 110.0000 116.5409 123.4708 130.8128 138.5913 146.8324 155.5635 164.8138 174.6141 184.9972 195.9977 207.6523 220.0000 233.0819 246.9417 261.6256 277.1826 293.6648 311.1270 329.6276 349.2282 369.9944 391.9954 415.3047 440.0000 466.1638 493.8833 523.2511 554.3653 587.3295 622.2540 659.2551 698.4565 739.9888 783.9909 830.6094 880.0000 932.3275 987.7666 1046.502 1108.731 1174.659 1244.508 1318.510 1396.913 1479.978 1567.982 1661.219 1760.000 1864.655 1975.533 2093.005 2217.461 2349.318 2489.016 2637.020 2793.826 2959.955 3135.963 3322.438 3520.000 3729.310 3951.066 4186.009 4434.922 4698.636 4978.032 5274.041 5587.652 5919.911 6271.927 6644.875 7040.000 7458.620 7902.133 8372.018/],
+	NOTES					=> ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'H'],
+};
+
+sub e {
+	my $a = shift;
+	my $b = shift;
+	my $c = sqrt($a*$a + $b*$b);
+	
+	my $n = shift;
+	my $hook = shift;
+	
+	my @s;
+	
+	my $modulation = note_rate(0) / 44100;
+
+	my $offset = $n * $modulation;
+
+	my $x;
+	
+	my $alpha;
+	if ($a > $b) {
+		$x = $b / $a;
+		$alpha = asin($b / $c);
+
+		$c = acos($alpha / 2.0) * $b;
+		$a = sqrt($c*$c - $b*$b);
+	} else {
+		$x = $b / $a;
+		$alpha = asin($a / $c);
+
+		$c = acos($alpha / 2.0) * $a;
+		$b = sqrt($c*$c - $a*$a);
+	}
+	
+	if ($c < 10) {
+		$a *= 10;
+		$b *= 10;
+	}
+	
+	$c = sqrt($a*$a+$b*$b);
+		
+	return $hook->(
+		$alpha,
+		$offset
+	);
+}
+
+sub note_rate {
+	my $note = shift;
+	
+	return $config->{NOTES_FREQUES}->[$note + 51];
+}
+
+sub sine {
+	my $note = shift;
+	my $note2 = shift;
+	
+	my $len = shift;
+	my $mod = note_rate($note) / 44100;
+	my $mod2 = note_rate($note2) / 44100;
+	
+	my @s1 = map { sin( $pi * $_ * $mod ) } 0 .. (44100 * $len - 1);
+	my @s2 = map { sin( $pi * $_ * $mod2 ) } 0 .. (44100 * $len - 1);
+	
+	my @buff;
+	for (0..scalar (@s1) - 1) {
+		push @buff, ($s1[$_]+$s2[$_])/2;
+	}
+	
+	my $buff = pack "f*", @buff;
+	
+	#for (@buff) {
+	#	my $s = int ($_ * 32767 + 0.5);
+	#	print pack('s', $s);
+	#}
+	return $buff;
+}
+
+
+
+my $api = Audio::PortAudio::default_host_api();
+my $device  = $api->default_output_device;
+
+my $stream = $device->open_write_stream({channel_count => 1}, 44100, 44100*0.4, 0);
+
+
+
+#my @s1 = e 7,2,421, sub{sin $_[0]*$_[1]};
+#my @s2 = e 7,2,421, sub{cos $_[0]*$_[1]};
+
+my $t0 = [gettimeofday];
+
+
+
+my $i = 0;
+while (1) {
+	
+	my $s1 = e (7,2, $i, sub{sin $_[0]*$_[1]});
+	my $s2 = e (7,2, $i, sub{cos $_[0]*$_[1]});
+	
+	my $buff = sine(
+		int ($s1*100) % 36, 
+		int ($s2*100) % 36, 
+		0.4
+	);
+	$stream->write($buff);
+	
+	$i ++;
+    
+    #my $elapsed = tv_interval ( $t0, [gettimeofday()]);
+    #warn "Time = $elapsed";
+}
+
+
+1;
